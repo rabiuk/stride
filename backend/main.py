@@ -30,7 +30,6 @@ origins = [
     "http://127.0.0.1:5173", # Add this for good measure
 ]
 
-# CORRECTED: This is a more robust CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -75,12 +74,14 @@ async def compile_weekly_log(request: CompileLogRequest):
 
     combined_raw_content = "\n\n---\n\n".join([entry['content'] for entry in raw_entries])
 
+    # --- FIX: REMOVED THE ` ```markdown ` WRAPPER FROM THE PROMPT ---
+    # This prevents the AI from adding the code block in the first place,
+    # which is a cleaner solution than stripping it afterwards.
     gemini_prompt_text = (
         "You are an expert personal assistant helping a software engineer create a concise promotion journal. "
         "Review the following raw daily/session notes from a single week. Your task is to: "
         "1. Synthesize and combine similar points from the notes."
-        "2. Structure the information into a single, comprehensive weekly log using the following markdown format:\n\n"
-        "```markdown\n"
+        "2. Structure the information into a single, comprehensive weekly log using the following markdown format (do NOT wrap it in a code block):\n\n"
         f"## Week of {week_start_str}\n\n"
         "✅ **What I did**\n"
         "- [Synthesized list of key tasks/projects]\n\n"
@@ -89,8 +90,7 @@ async def compile_weekly_log(request: CompileLogRequest):
         "🧠 **Learned**\n"
         "- [Synthesized list of new skills, technologies, insights]\n\n"
         "❓ **Questions / Next**\n"
-        "- [Synthesized list of open questions, next steps, or areas for exploration]\n"
-        "```\n\n"
+        "- [Synthesized list of open questions, next steps, or exploration]\n\n"
         "Crucially: "
         "- Do NOT invent content. Only use information provided in the raw notes.\n"
         "- Be concise. Combine related points into single bullet items where appropriate.\n"
@@ -113,8 +113,10 @@ async def compile_weekly_log(request: CompileLogRequest):
             print(f"Prompt Feedback: {response.prompt_feedback}")
             raise HTTPException(status_code=500, detail=f"AI response was blocked due to safety concerns. Feedback: {response.prompt_feedback}")
 
-        formatted_markdown = response.text
+        # The AI response should now be clean markdown. We'll still strip just in case.
+        cleaned_markdown = response.text.strip()
         print("Received formatted markdown from Gemini.")
+
     except Exception as e:
         print(f"Error calling Gemini API: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to compile log with AI: {e}")
@@ -126,13 +128,15 @@ async def compile_weekly_log(request: CompileLogRequest):
         compiled_log_id = None
         if existing_log:
             compiled_log_id = existing_log[0]['id']
-            update_res = supabase_client.table('compiled_logs').update({'markdown_blob': formatted_markdown, 'created_at': datetime.now().isoformat()}).eq('id', compiled_log_id).execute()
+            # --- FIX: Use the cleaned markdown for updates ---
+            update_res = supabase_client.table('compiled_logs').update({'markdown_blob': cleaned_markdown, 'created_at': datetime.now().isoformat()}).eq('id', compiled_log_id).execute()
             print(f"Updated compiled log ID: {compiled_log_id}")
         else:
+            # --- FIX: Use the cleaned markdown for inserts ---
             insert_res = supabase_client.table('compiled_logs').insert({
                 'user_id': user_id,
                 'week_start': week_start_str,
-                'markdown_blob': formatted_markdown,
+                'markdown_blob': cleaned_markdown,
             }).execute()
             compiled_log_id = insert_res.data[0]['id']
             print(f"Inserted new compiled log ID: {compiled_log_id}")
@@ -140,7 +144,8 @@ async def compile_weekly_log(request: CompileLogRequest):
         return CompileLogResponse(
             message="Weekly log compiled and saved successfully!",
             compiled_log_id=str(compiled_log_id),
-            formatted_markdown=formatted_markdown
+            # --- FIX: Return the cleaned markdown ---
+            formatted_markdown=cleaned_markdown
         )
     except Exception as e:
         print(f"Error saving compiled log to Supabase: {e}")

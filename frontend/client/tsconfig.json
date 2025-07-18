@@ -2,16 +2,16 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ]
-    },
-    "types": ["vite/client"]
+      "@/*": ["./src/*"]
+    }
   },
   "files": [],
   "references": [
     {
       "path": "./tsconfig.app.json"
+    },
+    {
+      "path": "./tsconfig.node.json"
     }
   ]
 }

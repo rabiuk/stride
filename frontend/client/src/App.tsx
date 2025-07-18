@@ -1,18 +1,18 @@
-import { createBrowserRouter, RouterProvider } from "react-router-dom";
-import { Layout } from "@/components/Layout";
-import { InputPage } from "@/pages/InputPage";
-import { HistoryPage } from "@/pages/HistoryPage";
+import { createBrowserRouter, RouterProvider } from 'react-router-dom';
+import { Layout } from '@/components/Layout';
+import { InputPage } from '@/pages/InputPage';
+import { HistoryPage } from '@/pages/HistoryPage';
 
 const router = createBrowserRouter([
   {
     element: <Layout />,
     children: [
       {
-        path: "/",
+        path: '/',
         element: <InputPage />,
       },
       {
-        path: "/history",
+        path: '/history',
         element: <HistoryPage />,
       },
     ],
