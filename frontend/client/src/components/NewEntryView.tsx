@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { useOutletContext, useNavigate } from 'react-router-dom';
 import { Textarea } from '@/components/ui/textarea';
+import { Mic, ArrowRight, Send } from 'lucide-react';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import { supabase } from '@/supabaseClient';
-import { Mic, ArrowRight, Send, Loader2 } from 'lucide-react';
 
 const questions = [
   'What did you work on today?',
@@ -11,9 +11,11 @@ const questions = [
   'Any questions or next steps?',
 ];
 
+const questionKeys = ['whatIdid', 'impact', 'learned', 'questionsNext'];
+
 type AppContext = { session: any };
 
-export const InputPage = () => {
+export const NewEntryView = () => {
   const { session } = useOutletContext<AppContext>();
   const navigate = useNavigate();
 
@@ -22,8 +24,6 @@ export const InputPage = () => {
   const [status, setStatus] = useState<'idle' | 'submitting'>('idle');
   const [error, setError] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  const isLastQuestion = currentQuestion === questions.length - 1;
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -40,8 +40,8 @@ export const InputPage = () => {
     setAnswers(newAnswers);
   };
 
-  const handleNextOrSubmit = () => {
-    if (!isLastQuestion) {
+  const handleNext = () => {
+    if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(currentQuestion + 1);
     } else {
       handleSubmit();
@@ -53,7 +53,7 @@ export const InputPage = () => {
       setError('You must be logged in.');
       return;
     }
-    setStatus('submitting'); // This triggers the loader
+    setStatus('submitting');
     setError('');
 
     const formData = {
@@ -81,34 +81,35 @@ export const InputPage = () => {
         throw new Error(errData.detail || 'Failed to compile log');
       }
 
-      navigate('/history');
+      // Reset form and navigate
+      setAnswers(Array(questions.length).fill(''));
+      setCurrentQuestion(0);
+      navigate(0); // This is a trick to force a re-render/re-fetch on the history page if the user goes there next.
     } catch (err: any) {
       setError(err.message || 'An error occurred.');
-      setStatus('idle'); // Reset status on error
+    } finally {
+      setStatus('idle');
     }
   };
 
   return (
     <div className="flex w-full flex-1 flex-col items-center justify-center px-4">
       <div className="mb-6 flex w-full max-w-2xl flex-col items-center text-center">
-        <div className="mb-2 text-4xl font-bold">Stride</div>
-        <p className="mb-6 text-sm text-muted-foreground">
-          Take the next step.
-        </p>
-        <div className="flex items-center justify-center gap-4">
+        <div className="mb-4 flex items-center justify-center gap-4">
           {questions.map((_, i) => (
             <div
               key={i}
               onClick={() => setCurrentQuestion(i)}
               className="flex cursor-pointer items-center gap-1"
             >
-              {i !== 0 && <div className="h-px w-10 bg-muted-foreground/30" />}
+              {i !== 0 && <div className="h-px w-8 bg-muted-foreground/30" />}
               <span
-                className={`h-1.5 w-1.5 rounded-full transition-all ${i === currentQuestion ? 'bg-white' : 'bg-muted-foreground/50'}`}
+                className={`h-2 w-2 rounded-full transition-all ${i === currentQuestion ? 'bg-white' : 'bg-muted-foreground/50'}`}
               />
             </div>
           ))}
         </div>
+        <div className="text-2xl font-semibold">Stride</div>
         {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
       </div>
 
@@ -128,14 +129,12 @@ export const InputPage = () => {
         <div className="mt-3 flex items-center justify-end gap-3">
           <Mic className="h-5 w-5 text-muted-foreground hover:text-white" />
           <button
-            onClick={handleNextOrSubmit}
+            onClick={handleNext}
             disabled={
               !answers[currentQuestion].trim() || status === 'submitting'
             }
           >
-            {status === 'submitting' ? (
-              <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
-            ) : isLastQuestion ? (
+            {currentQuestion === questions.length - 1 ? (
               <Send className="h-5 w-5 cursor-pointer text-blue-400 hover:text-blue-300" />
             ) : (
               <ArrowRight className="h-5 w-5 cursor-pointer text-muted-foreground hover:text-white" />
