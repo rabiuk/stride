@@ -3,6 +3,7 @@ import { useOutletContext, useNavigate } from 'react-router-dom';
 import { Textarea } from '@/components/ui/textarea';
 import { supabase } from '@/supabaseClient';
 import { Mic, ArrowRight, Send, Loader2 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const questions = [
   'What did you work on today?',
@@ -19,11 +20,13 @@ export const InputPage = () => {
 
   const [answers, setAnswers] = useState(Array(questions.length).fill(''));
   const [currentQuestion, setCurrentQuestion] = useState(0);
+  const [maxReachedQuestion, setMaxReachedQuestion] = useState(0);
   const [status, setStatus] = useState<'idle' | 'submitting'>('idle');
   const [error, setError] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isLastQuestion = currentQuestion === questions.length - 1;
+  const isCurrentAnswerEmpty = !answers[currentQuestion].trim();
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -42,9 +45,19 @@ export const InputPage = () => {
 
   const handleNextOrSubmit = () => {
     if (!isLastQuestion) {
-      setCurrentQuestion(currentQuestion + 1);
+      const nextQuestionIndex = currentQuestion + 1;
+      setCurrentQuestion(nextQuestionIndex);
+      if (nextQuestionIndex > maxReachedQuestion) {
+        setMaxReachedQuestion(nextQuestionIndex);
+      }
     } else {
       handleSubmit();
+    }
+  };
+
+  const handleDotClick = (index: number) => {
+    if (index <= maxReachedQuestion) {
+      setCurrentQuestion(index);
     }
   };
 
@@ -53,7 +66,7 @@ export const InputPage = () => {
       setError('You must be logged in.');
       return;
     }
-    setStatus('submitting'); // This triggers the loader
+    setStatus('submitting');
     setError('');
 
     const formData = {
@@ -84,7 +97,7 @@ export const InputPage = () => {
       navigate('/history');
     } catch (err: any) {
       setError(err.message || 'An error occurred.');
-      setStatus('idle'); // Reset status on error
+      setStatus('idle');
     }
   };
 
@@ -96,18 +109,41 @@ export const InputPage = () => {
           Take the next step.
         </p>
         <div className="flex items-center justify-center gap-4">
-          {questions.map((_, i) => (
-            <div
-              key={i}
-              onClick={() => setCurrentQuestion(i)}
-              className="flex cursor-pointer items-center gap-1"
-            >
-              {i !== 0 && <div className="h-px w-10 bg-muted-foreground/30" />}
-              <span
-                className={`h-1.5 w-1.5 rounded-full transition-all ${i === currentQuestion ? 'bg-white' : 'bg-muted-foreground/50'}`}
-              />
-            </div>
-          ))}
+          {questions.map((_, i) => {
+            const isUnlocked = i <= maxReachedQuestion;
+            return (
+              <div
+                key={i}
+                onClick={() => handleDotClick(i)}
+                className={cn(
+                  'flex items-center gap-1',
+                  // --- FIX: Changed cursor-not-allowed to cursor-default ---
+                  isUnlocked ? 'cursor-pointer' : 'cursor-default'
+                )}
+              >
+                {i !== 0 && (
+                  <div
+                    className={cn(
+                      'h-px w-10',
+                      isUnlocked
+                        ? 'bg-muted-foreground/30'
+                        : 'bg-muted-foreground/10'
+                    )}
+                  />
+                )}
+                <span
+                  className={cn(
+                    'h-1.5 w-1.5 rounded-full transition-all',
+                    i === currentQuestion
+                      ? 'bg-white'
+                      : isUnlocked
+                        ? 'bg-muted-foreground/50'
+                        : 'bg-muted-foreground/20'
+                  )}
+                />
+              </div>
+            );
+          })}
         </div>
         {error && <p className="mt-2 text-sm text-destructive">{error}</p>}
       </div>
@@ -127,18 +163,30 @@ export const InputPage = () => {
         />
         <div className="mt-3 flex items-center justify-end gap-3">
           <Mic className="h-5 w-5 text-muted-foreground hover:text-white" />
+          {/* --- FIX: Updated button logic and icon classNames --- */}
           <button
             onClick={handleNextOrSubmit}
-            disabled={
-              !answers[currentQuestion].trim() || status === 'submitting'
-            }
+            disabled={isCurrentAnswerEmpty || status === 'submitting'}
+            className="disabled:cursor-default"
           >
             {status === 'submitting' ? (
               <Loader2 className="h-5 w-5 animate-spin text-blue-400" />
             ) : isLastQuestion ? (
-              <Send className="h-5 w-5 cursor-pointer text-blue-400 hover:text-blue-300" />
+              <Send
+                className={cn(
+                  'h-5 w-5 transition-colors',
+                  isCurrentAnswerEmpty ? 'text-blue-400/50' : 'text-blue-400'
+                )}
+              />
             ) : (
-              <ArrowRight className="h-5 w-5 cursor-pointer text-muted-foreground hover:text-white" />
+              <ArrowRight
+                className={cn(
+                  'h-5 w-5 transition-colors',
+                  isCurrentAnswerEmpty
+                    ? 'text-muted-foreground/50'
+                    : 'text-white'
+                )}
+              />
             )}
           </button>
         </div>
